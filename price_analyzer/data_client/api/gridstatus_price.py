@@ -5,7 +5,7 @@ import pandas as pd
 
 from gridstatusio import GridStatusClient
 
-from price_analyzer.dtos.basic_types import ISOType, MarketType, PriceType, ResolutionType
+from price_analyzer.dtos.basic_types import ISOType, MarketType, PriceType
 
 QUERY_LIMIT = 10_000
 
@@ -114,7 +114,7 @@ def _construct_dataset_name(iso: ISOType, market_type: MarketType, price_type: P
 
 
 
-def _validate_inputs(node: str, start_time: datetime, end_time: datetime) -> None:
+def _validate_inputs(price_type: PriceType, node: str, start_time: datetime, end_time: datetime) -> None:
     """ all the publich methods should validate inputs.
     here we validate that for example start-time and end-times are
     in UTC start-time is before end-time and so on.

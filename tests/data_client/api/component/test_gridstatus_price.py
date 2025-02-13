@@ -4,8 +4,9 @@ import pandas as pd
 from pytz import utc
 from price_analyzer.data_client.api.gridstatus_price import GridStatusPriceClient
 from tests.data_client.api.component.utils import GridStatusClientMock
-from price_analyzer.dtos.basic_types import ISOType, MarketType, PriceType, ResolutionType
+from price_analyzer.dtos.basic_types import ISOType, MarketType, PriceType
 MOCK_GRIDSTATUS_CLIENT = True
+
 
 
     
@@ -19,14 +20,13 @@ class TestGridStatusPriceClient:
             return GridStatusPriceClient()
 
     def test_get_price_actual_happy_path(self, client):
-        result = client.get_price_actual(
+        result = client.get_energy_price_actual(
             iso=ISOType.ERCOT,
             market_type=MarketType.DAM,
             price_type=PriceType.SPP,
             node="HB_HOUSTON",
             start_time=datetime.now(utc) - timedelta(days=2),
             end_time=datetime.now(utc) - timedelta(days=1),
-            resolution_type=ResolutionType.HOURLY,
         )
         assert result is not None
         assert isinstance(result, pd.DataFrame)
