@@ -6,6 +6,7 @@ import pandas as pd
 from gridstatusio import GridStatusClient
 
 from price_analyzer.dtos.basic_types import ISOType, MarketType, PriceType
+from price_analyzer.data_client.api.persist_cache import get_cache_file
 
 QUERY_LIMIT = 10_000
 
@@ -17,6 +18,8 @@ PRICE_DATA_NAME_MAP: Dict[Tuple[MarketType, PriceType], str] = {
     (MarketType.RTM, PriceType.LMP): "ercot_lmp_by_settlement_point",
     (MarketType.DAM, PriceType.LMP): "ercot_lmp_by_bus_dam",  # NOTE: usually we care about the three above
 }
+
+
 
 
 class GridStatusPriceClient:
@@ -40,6 +43,27 @@ class GridStatusPriceClient:
             self.client = api_clinet
     
     
+
+    def get_energy_price_actual_with_cache(
+        self,
+        iso: ISOType,
+        market_type: MarketType,
+        price_type: PriceType,
+        node: str,
+        start_time: datetime,
+        end_time: datetime,
+    ) -> pd.DataFrame:
+        # this is a wrapper for the get_energy_price_actual method
+        # the caching purpose is to avoid query for the same records
+        # of price
+        cache_file = get_cache_file(
+            iso=iso,
+            market_type=market_type,
+            price_type=price_type,
+            node=node,
+        )
+        
+
     def get_energy_price_actual(
         self,
         iso: ISOType,
@@ -122,3 +146,20 @@ def _validate_inputs(price_type: PriceType, node: str, start_time: datetime, end
     most importantly we validate that the price_type is either LMP or SPP
     """
     pass
+
+
+
+if __name__ == "__main__":
+    # this is just for testing the client
+    client = GridStatusPriceClient()
+    start_time = datetime(2024, 10, 1, 0, 0, 0)
+    end_time = datetime(2024, 10, 1, 4, 0, 0)
+    df = client.get_energy_price_actual(
+        iso=ISOType.ERCOT,
+        market_type=MarketType.DAM,
+        price_type=PriceType.SPP,
+        node="HB_HOUSTON",
+        start_time=start_time,
+        end_time=end_time,
+    )
+    print(df.head())

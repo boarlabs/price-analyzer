@@ -1,1 +1,1 @@
-gridstatusio==0.8.0
+gridstatusio==0.11.0
