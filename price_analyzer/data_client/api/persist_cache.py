@@ -45,7 +45,10 @@ def get_cache_file(iso: ISOType, market_type: MarketType, price_type: PriceType,
         cache_df = pd.DataFrame(columns=COLUMN_NAMES)
     else:
         # Load the existing cache file into a DataFrame
-        cache_df = pd.read_csv(cache_file_path)
+        cache_df = pd.read_csv(
+            cache_file_path,
+            parse_dates=["interval_start_utc", "interval_end_utc"]
+        )
         
     return cache_df
 
@@ -75,12 +78,23 @@ def get_missing_periods(
     existing_periods = pd.to_datetime(
         df.loc[df['price'].notnull(), 'interval_start_utc'].dropna().unique()
     )
-    existing_periods = existing_periods.sort_values()
+    existing_periods = pd.Series(existing_periods).sort_values().to_numpy()
     
-    first_row = df[df['price'].notnull()].iloc[0]
-    freq = pd.Timedelta(first_row['interval_end_utc'] - first_row['interval_start_utc'])
-    all_periods = pd.date_range(start=start_time, end=end_time, freq=freq)
+    # Determine frequency
+    if not df.empty:
+        first_valid = df[df['price'].notnull()].iloc[0]
+        freq = pd.to_datetime(first_valid['interval_end_utc']) - pd.to_datetime(first_valid['interval_start_utc'])
+        freq = pd.Timedelta('1H')
+    else:
+        freq = pd.Timedelta('1H')
+    freq_timedelta = pd.Timedelta(freq)
+    all_periods = pd.date_range(start=start_time, end=end_time, freq=freq_timedelta)
     missing_periods = all_periods.difference(existing_periods)
+
+    if len(existing_periods) == 0:
+        # All periods are missing
+        missing_ranges = [(start_time, end_time)]
+        return missing_ranges
 
     if missing_periods.empty:
         return []
@@ -90,14 +104,31 @@ def get_missing_periods(
     start = missing_periods[0]
     prev = missing_periods[0]
     for current in missing_periods[1:]:
-        if (current - prev) != pd.Timedelta(freq):
+        if (current - prev) != freq_timedelta:
             # End of a missing range
-            missing_ranges.append((start, prev + pd.Timedelta(freq)))
+            missing_ranges.append((start, prev + freq_timedelta))
             start = current
         prev = current
     # Add the last range
-    missing_ranges.append((start, prev + pd.Timedelta(freq)))
+    missing_ranges.append((start, prev + freq_timedelta))
     return missing_ranges
 
 
 
+def persist_cache_file(
+    df: pd.DataFrame,
+    iso: ISOType,
+    market_type: MarketType,
+    price_type: PriceType,
+    node: str,
+) -> None:
+    """
+    Persists the DataFrame to a cache file.
+    """
+    cache_file_path = get_cache_file_path(iso, market_type, price_type, node)
+    
+    # Ensure the directory exists
+    cache_file_path.parent.mkdir(parents=True, exist_ok=True)
+    
+    # Save the DataFrame to CSV
+    df.to_csv(cache_file_path, index=False)

@@ -2,15 +2,15 @@ import os
 from datetime import datetime
 from typing import Tuple, Dict
 import pandas as pd
-
+from zoneinfo import ZoneInfo
 from gridstatusio import GridStatusClient
 
 from price_analyzer.dtos.basic_types import ISOType, MarketType, PriceType
-from price_analyzer.data_client.api.persist_cache import get_cache_file
+from price_analyzer.data_client.api.persist_cache import get_cache_file, get_missing_periods, persist_cache_file
 
 QUERY_LIMIT = 10_000
 
-
+UTC = ZoneInfo("UTC")
 
 PRICE_DATA_NAME_MAP: Dict[Tuple[MarketType, PriceType], str] = {
     (MarketType.DAM, PriceType.SPP): "ercot_spp_day_ahead_hourly",
@@ -62,7 +62,46 @@ class GridStatusPriceClient:
             price_type=price_type,
             node=node,
         )
+        missing_periods = get_missing_periods(
+            cache_file,
+            start_time,
+            end_time,
+        )
+
+        if not missing_periods:
+            # return the portion of the cache file that is within the start_time and end_time
+            return cache_file[
+                (cache_file['interval_start_utc'] >= start_time) &
+                (cache_file['interval_end_utc'] <= end_time)
+            ]
+
+
+        for start, end in missing_periods:
+            # we will query the api for the missing periods
+            results = self.get_energy_price_actual(
+                iso=iso,
+                market_type=market_type,
+                price_type=price_type,
+                node=node,
+                start_time=start,
+                end_time=end,
+            )
+            # append the results to the cache file
+            cache_file = pd.concat([cache_file, results], ignore_index=True)
         
+        persist_cache_file(
+            df=cache_file,
+            iso=iso,
+            market_type=market_type,
+            price_type=price_type,
+            node=node,
+        )
+        
+        return cache_file[
+            (cache_file['interval_start_utc'] >= start_time) &
+            (cache_file['interval_end_utc'] <= end_time)
+        ]
+
 
     def get_energy_price_actual(
         self,
@@ -152,9 +191,17 @@ def _validate_inputs(price_type: PriceType, node: str, start_time: datetime, end
 if __name__ == "__main__":
     # this is just for testing the client
     client = GridStatusPriceClient()
-    start_time = datetime(2024, 10, 1, 0, 0, 0)
-    end_time = datetime(2024, 10, 1, 4, 0, 0)
-    df = client.get_energy_price_actual(
+    start_time = datetime(2024, 10, 1, 0, 0, 0, tzinfo=UTC)
+    end_time = datetime(2024, 10, 1, 4, 0, 0, tzinfo=UTC)
+    # df = client.get_energy_price_actual(
+    #     iso=ISOType.ERCOT,
+    #     market_type=MarketType.DAM,
+    #     price_type=PriceType.SPP,
+    #     node="HB_HOUSTON",
+    #     start_time=start_time,
+    #     end_time=end_time,
+    # )
+    df = client.get_energy_price_actual_with_cache(
         iso=ISOType.ERCOT,
         market_type=MarketType.DAM,
         price_type=PriceType.SPP,
