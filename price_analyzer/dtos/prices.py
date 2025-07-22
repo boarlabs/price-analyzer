@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 from price_analyzer.dtos.basic_types import PriceType, PriceLocationType
 
 
-
+@dataclass
 class PriceLocation:
     name: str
     location_type: PriceLocationType

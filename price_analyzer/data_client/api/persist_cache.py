@@ -84,11 +84,12 @@ def get_missing_periods(
     if not df.empty:
         first_valid = df[df['price'].notnull()].iloc[0]
         freq = pd.to_datetime(first_valid['interval_end_utc']) - pd.to_datetime(first_valid['interval_start_utc'])
-        freq = pd.Timedelta('1H')
+        # freq = pd.Timedelta('1H')
     else:
         freq = pd.Timedelta('1H')
     freq_timedelta = pd.Timedelta(freq)
-    all_periods = pd.date_range(start=start_time, end=end_time, freq=freq_timedelta)
+
+    all_periods = pd.date_range(start=start_time, end=end_time - freq_timedelta, freq=freq_timedelta)
     missing_periods = all_periods.difference(existing_periods)
 
     if len(existing_periods) == 0:

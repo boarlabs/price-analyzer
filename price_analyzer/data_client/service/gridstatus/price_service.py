@@ -4,7 +4,7 @@ import pandas as pd
 import numpy as np
 from price_analyzer.data_client.service.iprice_service import IPriceService
 from price_analyzer.dtos.prices import Price, PriceLocation
-from price_analyzer.dtos.basic_types import MarketType, PriceType, ResolutionType, ISOType
+from price_analyzer.dtos.basic_types import MarketType, PriceType, ISOType
 from price_analyzer.data_client.api.gridstatus_price import GridStatusPriceClient
 
 
@@ -22,7 +22,7 @@ class PriceService(IPriceService):
             raise ValueError("ISO is not initialized")
         return self._iso
     
-    def initilize_service_iso(self, iso: ISOType):
+    def initialize_service_iso(self, iso: ISOType):
         """
         so we can either pass it in each call, but normally we deal with the same market,
         so might be annoying to pass it in each call,
@@ -31,6 +31,27 @@ class PriceService(IPriceService):
         so for now I decied to initialize it here
         """
         self._iso = iso
+    
+    def get_price_actual_df(
+        self,
+        market_type: MarketType,
+        price_type: PriceType,
+        location: PriceLocation,
+        start_time: datetime,
+        end_time: datetime,
+        resolution_minutes: int,
+    ) -> pd.DataFrame:
+        if price_type in [PriceType.LMP, PriceType.SPP]:
+            return  self.price_data_client.get_energy_price_actual_with_cache(
+                iso=self.iso,
+                market_type=market_type,
+                price_type=price_type,
+                node=location.name,
+                start_time=start_time,
+                end_time=end_time,
+            )
+        else:
+            raise ValueError("Invalid price type for DataFrame retrieval")
 
     def get_price_actual(
         self,
