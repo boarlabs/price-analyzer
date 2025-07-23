@@ -1,14 +1,14 @@
 from datetime import datetime
 from zoneinfo import ZoneInfo
-from typing import List
 from price_analyzer.data_client.service.iprice_service import IPriceService
-from price_analyzer.dtos.basic_types import MarketType, PriceType, ISOType
-from price_analyzer.dtos.prices import PriceLocation, PriceLocationType
+from price_analyzer.dtos.basic_types import MarketType, PriceType
+from price_analyzer.dtos.prices import PriceLocation
 from price_analyzer.models.price_stats import (
     price_weekly_stats, 
+    price_daily_stats,
     price_daily_stats_extended, 
-    get_price_peak_offpeak_hours,
-    get_price_peak_offpeak_hours_alt,
+    price_peak_offpeak_hours_aprox,
+    price_peak_offpeak_hours,
     price_daily_stats_infer_peak,
     price_stat_weekly_extended,
     price_stat_weekly_weekday_separated,
@@ -17,8 +17,7 @@ from price_analyzer.models.price_stats import (
     dam_rtm_hourly_dif_short_term,
 )
 
-from price_analyzer.data_client.service.gridstatus.price_service import PriceService
-from price_analyzer.data_client.api.gridstatus_price import GridStatusPriceClient   
+
 
 UTC = ZoneInfo("UTC")
 TIMEZONE = ZoneInfo("US/Central")
@@ -41,10 +40,10 @@ def get_price_stats(
         resolution_minutes=60,
     )
     
-    # df2 = price_daily_stats(df)
+    daily_stats = price_daily_stats(df, timezone=TIMEZONE)
     
-    df4 = price_daily_stats_extended(df, timezone=TIMEZONE)
-    return df4
+    daily_stats_extended = price_daily_stats_extended(df, timezone=TIMEZONE)
+    return daily_stats, daily_stats_extended
 
 def get_period_price_stats(
     price_service: IPriceService,
@@ -63,16 +62,16 @@ def get_period_price_stats(
         resolution_minutes=60,
     )
     
-    # out = get_price_peak_offpeak_hours(
+    # peak_hours_aprox = price_peak_offpeak_hours_aprox(
     #     df=df,
     #     timezone=TIMEZONE,
     # )
-    # out_alt = get_price_peak_offpeak_hours_alt(
-    #     df=df,
-    #     timezone=TIMEZONE,
-    # )
-    stat_df = price_daily_stats_infer_peak(df, TIMEZONE)
-    return stat_df
+    peak_hours = price_peak_offpeak_hours(
+        df=df,
+        timezone=TIMEZONE,
+    )
+    stat_for_periods = price_daily_stats_infer_peak(df, TIMEZONE)
+    return peak_hours, stat_for_periods
 
 def get_weekly_price_stats(
     price_service: IPriceService,
@@ -90,12 +89,10 @@ def get_weekly_price_stats(
         end_time=end_time,
         resolution_minutes=60,
     )
-    # df3 = price_weekly_stats(df)
-    # df = price_stat_weekly_extended(df, TIMEZONE)
-
-    df = price_stat_weekly_weekday_separated(df, TIMEZONE)
-    print(df.head())
-    return  
+    weekly_stats = price_weekly_stats(df, TIMEZONE)
+    weekly_stats_extended = price_stat_weekly_extended(df, TIMEZONE)
+    weekday_weekend_stats = price_stat_weekly_weekday_separated(df, TIMEZONE)
+    return  weekly_stats, weekly_stats_extended, weekday_weekend_stats
 
 def get_hourly_mean(
     price_service: IPriceService,
@@ -115,11 +112,9 @@ def get_hourly_mean(
             resolution_minutes=60,
         )
     
-    price_m = price_hourly_means(df, TIMEZONE)
-    print(price_m)
-
-    df = price_hourly_variations(df, TIMEZONE)
-    print(df.head())
+    price_hourly_mean = price_hourly_means(df, TIMEZONE)
+    hourly_variations = price_hourly_variations(df, TIMEZONE)
+    return price_hourly_mean, hourly_variations
 
 def get_dam_rtm_price_stats(
     price_service: IPriceService,
@@ -128,7 +123,6 @@ def get_dam_rtm_price_stats(
     # first need to establish the trends of the prices in the DAM market
     start_time_dam = datetime(2024, 10, 1, 6, tzinfo=UTC)
     end_time_dam = datetime(2024, 10, 30, 5, tzinfo=UTC)
-
     dam_df = price_service.get_price_actual_df(
         market_type=MarketType.DAM,
         price_type=PriceType.SPP,
@@ -138,7 +132,7 @@ def get_dam_rtm_price_stats(
         resolution_minutes=60,
     )
 
-    peak_hours, offpeak_hours, midpeak_hours = get_price_peak_offpeak_hours_alt(
+    peak_hours, midpeak_hours, offpeak_hours,  = price_peak_offpeak_hours(
         df=dam_df,
         timezone=TIMEZONE,
     )
@@ -155,7 +149,7 @@ def get_dam_rtm_price_stats(
         resolution_minutes=15,
     )
 
-    df = dam_rtm_hourly_dif_short_term(
+    dart_stats = dam_rtm_hourly_dif_short_term(
         dam_df=dam_df,
         rtm_df=rtm_df,
         peak_hours=peak_hours,
@@ -163,47 +157,6 @@ def get_dam_rtm_price_stats(
         midpeak_hours=midpeak_hours,
         timezone=TIMEZONE,
     )
-    return df
+    return dart_stats
 
 
-
-def main():
-
-    price_service = PriceService(price_data_client=GridStatusPriceClient())
-    price_service.initialize_service_iso(ISOType.ERCOT)
-
-    # get_price_stats(
-    #     price_service=price_service,
-    #     market_type=MarketType.DAM,
-    #     price_type=PriceType.SPP,
-    #     location=PriceLocation(name="HB_HOUSTON", location_type=PriceLocationType.HUB),
-    #     start_time=datetime(2024, 10, 1, 6, tzinfo=UTC),
-    #     end_time=datetime(2024, 10, 30, 5, tzinfo=UTC),
-    # )
-
-    # get_weekly_price_stats(
-    #     price_service=price_service,
-    #     market_type=MarketType.DAM,
-    #     price_type=PriceType.SPP,
-    #     location=PriceLocation(name="HB_HOUSTON", location_type=PriceLocationType.HUB),
-    #     start_time=datetime(2024, 10, 1, 6, tzinfo=UTC),
-    #     end_time=datetime(2024, 10, 30, 5, tzinfo=UTC),
-    # )
-
-    # get_hourly_mean(
-    #     price_service=price_service,
-    #     market_type=MarketType.DAM,
-    #     price_type=PriceType.SPP,
-    #     location=PriceLocation(name="HB_HOUSTON", location_type=PriceLocationType.HUB),
-    #     start_time=datetime(2024, 10, 1, 6, tzinfo=UTC),
-    #     end_time=datetime(2024, 10, 30, 5, tzinfo=UTC),
-    # )
-
-    get_dam_rtm_price_stats(
-        price_service=price_service,
-        location=PriceLocation(name="HB_HOUSTON", location_type=PriceLocationType.HUB),
-    )
-  
-
-if __name__ == "__main__":
-    main()
